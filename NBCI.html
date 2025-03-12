@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBC Fraud Detection Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .search-panel {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        label {
+            margin-right: 10px;
+            font-weight: 600;
+            min-width: 120px;
+        }
+        input, select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            flex-grow: 1;
+            max-width: 300px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .results-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .results-container.show {
+            display: block;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .fraud-alert {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #f5c6cb;
+            display: none;
+        }
+        .fraud-alert.show {
+            display: block;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .results-table th, .results-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #f2f2f2;
+        }
+        .results-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f5f5f5;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        .products-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .products-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>NBC Fraud Detection Tool</h1>
+        
+        <div class="search-panel">
+            <div class="form-group">
+                <label for="csvFile">Upload CSV:</label>
+                <input type="file" id="csvFile" accept=".csv">
+                <button onclick="uploadCSV()">Upload CSV</button>
+            </div>
+            <div class="form-group">
+                <label for="start-date">Start Date:</label>
+                <input type="date" id="start-date" name="start-date">
+            </div>
+            <div class="form-group">
+                <label for="end-date">End Date:</label>
+                <input type="date" id="end-date" name="end-date">
+            </div>
+            <div class="form-group">
+                <label for="search-type">Search By:</label>
+                <select id="search-type" name="search-type">
+                    <option value="email">Email Address</option>
+                    <option value="shipping">Shipping Address</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="search-term">Search Term:</label>
+                <input type="text" id="search-term" name="search-term" placeholder="Enter email or shipping address">
+            </div>
+            <div class="form-group">
+                <button id="search-button">Search</button>
+            </div>
+        </div>
+        
+        <div class="fraud-alert" id="fraud-alert">
+            <strong>⚠️ Potential Fraud Alert:</strong> This customer has more than 5 accounts associated with the same shipping address. Please review carefully before processing any refunds or replacements.
+        </div>
+        
+        <div class="results-container" id="results-container">
+            <div class="results-header">
+                <h2 id="results-title">Search Results</h2>
+                <button id="export-button">Export Data</button>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab active" data-tab="summary">Summary</div>
+                <div class="tab" data-tab="details">Details</div>
+                <div class="tab" data-tab="products">Products</div>
+            </div>
+            
+            <!-- Email Search Results -->
+            <div id="email-results" class="tab-content active" data-type="summary">
+                <table class="results-table">
+                    <tr>
+                        <th>Customer Name</th>
+                        <td id="customer-name"></td>
+                    </tr>
+                    <tr>
+                        <th>Shipping Address</th>
+                        <td id="shipping-address"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Products Ordered</th>
+                        <td id="total-products"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Order Value</th>
+                        <td id="total-order-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Products Returned</th>
+                        <td id="products-returned"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Refund Value</th>
+                        <td id="refund-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Products Replaced</th>
+                        <td id="products-replaced"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Replacement Value</th>
+                        <td id="replacement-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Products Replaced & Returned</th>
+                        <td id="replaced-returned"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Value of Replacements & Returns</th>
+                        <td id="replacement-return-value"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div id="email-details" class="tab-content" data-type="details">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Date</th>
+                            <th>Products</th>
+                            <th>Order Value</th>
+                            <th>Status</th>
+                            <th>Return/Refund</th>
+                        </tr>
+                    </thead>
+                    <tbody id="order-details"></tbody>
+                </table>
+            </div>
+            
+            <div id="email-products" class="tab-content" data-type="products">
+                <h3>Most Ordered Products</h3>
+                <ul class="products-list" id="top-products"></ul>
+            </div>
+            
+            <!-- Shipping Address Search Results -->
+            <div id="shipping-results" class="tab-content" data-type="summary" style="display: none;">
+                <table class="results-table">
+                    <tr>
+                        <th>Email Accounts</th>
+                        <td id="email-count"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Orders Placed</th>
+                        <td id="total-orders"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Order Value</th>
+                        <td id="shipping-order-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Orders Returned</th>
+                        <td id="orders-returned"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Refund Value</th>
+                        <td id="shipping-refund-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Orders Replaced</th>
+                        <td id="orders-replaced"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Replacement Value</th>
+                        <td id="shipping-replacement-value"></td>
+                    </tr>
+                    <tr>
+                        <th>Orders Replaced & Returned</th>
+                        <td id="shipping-replaced-returned"></td>
+                    </tr>
+                    <tr>
+                        <th>Total Value</th>
+                        <td id="shipping-total-value"></td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div id="shipping-details" class="tab-content" data-type="details" style="display: none;">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Orders</th>
+                            <th>Total Value</th>
+                            <th>Returns</th>
+                            <th>Refund Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="email-details"></tbody>
+                </table>
+            </div>
+            
+            <div id="shipping-products" class="tab-content" data-type="products" style="display: none;">
+                <h3>Most Ordered Products by Address</h3>
+                <ul class="products-list" id="address-top-products"></ul>
+            </div>
+        </div>
+        
+        <!-- Hidden modal for displaying emails -->
+        <div id="email-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="background-color: white; margin: 10% auto; padding: 20px; width: 80%; max-width: 600px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                    <h3>Email Accounts Associated with This Address</h3>
+                    <button id="close-modal" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+                </div>
+                <ul id="email-list" style="max-height: 300px; overflow-y: auto; padding-left: 20px;"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ordersData = [];
+        let currentSearchData = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    const type = document.querySelector('#search-type').value;
+                    const term = document.querySelector('#search-term').value;
+                    const startDate = document.querySelector('#start-date').value;
+                    const endDate = document.querySelector('#end-date').value;
+                    const tabType = tab.getAttribute('data-tab');
+                    updateResults(type, term, startDate, endDate, tabType);
+                });
+            });
+            document.getElementById('search-button').disabled = true;
+
+            // Set default dates (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            document.getElementById('end-date').value = today.toISOString().split('T')[0];
+            document.getElementById('start-date').value = thirtyDaysAgo.toISOString().split('T')[0];
+
+            // Export button click event
+            document.getElementById('export-button').addEventListener('click', function() {
+                alert('Data export initiated. The file will be downloaded shortly.');
+            });
+
+            // Close modal event
+            document.getElementById('close-modal').addEventListener('click', function() {
+                document.getElementById('email-modal').style.display = 'none';
+            });
+
+            // Search button click event
+            document.getElementById('search-button').addEventListener('click', function() {
+                const type = document.getElementById('search-type').value;
+                const term = document.getElementById('search-term').value.trim();
+                const startDate = document.getElementById('start-date').value;
+                const endDate = document.getElementById('end-date').value;
+
+                if (!term) {
+                    alert('Please enter a search term');
+                    return;
+                }
+
+                // Validate the search term
+                if (!validateSearchTerm(type, term)) {
+                    return;
+                }
+
+                // Show results container
+                document.getElementById('results-container').className = 'results-container show';
+
+                // Update UI based on search type
+                updateResults(type, term, startDate, endDate);
+            });
+        });
+
+        function validateSearchTerm(type, term) {
+            if (type === 'email') {
+                // Basic email validation: must contain '@' and a domain (e.g., '.com', '.org')
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(term)) {
+                    alert('Please enter a valid email address (e.g., example@domain.com)');
+                    return false;
+                }
+            } else if (type === 'shipping') {
+                // Basic address validation: must contain at least one number (for street number) and a comma (for city/state separation)
+                const addressRegex = /\d+.*,/;
+                if (!addressRegex.test(term)) {
+                    alert('Please enter a valid shipping address (e.g., 123 Main St, City, State ZIP)');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function uploadCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    ordersData = parseCSV(text);
+                    console.log('CSV parsed successfully:', ordersData);
+                    console.log('Sample order:', ordersData[0]);
+                    document.getElementById('search-button').disabled = false;
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function parseCSV(csvContent) {
+            const lines = csvContent.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().replace(/ /g, '_').toLowerCase());
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim()) {
+                    const values = parseCSVLine(lines[i]);
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        let value = values[index] || '';
+                        if (header === 'email_address' || header === 'shipping_address') {
+                            value = value.trim().replace(/^"|"$/g, '');
+                        }
+                        if (header.match(/(quantity|unit_price|order_total)/)) {
+                            value = parseFloat(value) || 0;
+                        } else if (header === 'order_date') {
+                            if (value) {
+                                const dateParts = value.split('-');
+                                if (dateParts.length === 3) {
+                                    let [month, day, year] = dateParts;
+                                    month = parseInt(month, 10);
+                                    day = parseInt(day, 10);
+                                    year = parseInt(year, 10);
+                                    if (
+                                        !isNaN(month) && month >= 1 && month <= 12 &&
+                                        !isNaN(day) && day >= 1 && day <= 31 &&
+                                        !isNaN(year) && year >= 1000
+                                    ) {
+                                        value = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                                    } else {
+                                        console.error(`Invalid date components in value: ${value}, month: ${month}, day: ${day}, year: ${year}`);
+                                        value = '';
+                                    }
+                                } else {
+                                    console.error(`Invalid date format for value: ${value}`);
+                                    value = '';
+                                }
+                            } else {
+                                console.error('Empty date value encountered');
+                                value = '';
+                            }
+                        }
+                        row[header] = value;
+                    });
+                    data.push(row);
+                }
+            }
+            return data;
+        }
+
+        function parseCSVLine(line) {
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let char of line) {
+                if (char === '"' && !inQuotes) {
+                    inQuotes = true;
+                } else if (char === '"' && inQuotes) {
+                    inQuotes = false;
+                } else if (char === ',' && !inQuotes) {
+                    values.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            values.push(current.trim());
+            return values;
+        }
+
+        function processOrders(orders, searchType, searchTerm, startDate, endDate) {
+            console.log('Search parameters:', { searchType, searchTerm, startDate, endDate });
+
+            const normalizedSearchTerm = searchTerm.trim().toLowerCase(); // Normalize search term
+
+            const filteredOrders = orders.filter(order => {
+                let orderDate;
+                if (order.order_date && order.order_date !== '') {
+                    orderDate = new Date(order.order_date);
+                    if (isNaN(orderDate.getTime())) {
+                        console.warn(`Invalid date parsed from order_date: ${order.order_date}`, order);
+                        return false;
+                    }
+                } else {
+                    console.warn(`Skipping order with invalid or empty date:`, order);
+                    return false;
+                }
+
+                console.log('Order date for comparison:', order.order_date, orderDate);
+
+                // Normalize order data for comparison
+                const emailMatch = searchType === 'email' && 
+                    order.email_address && 
+                    order.email_address.trim().toLowerCase() === normalizedSearchTerm;
+                const shippingMatch = searchType === 'shipping' && 
+                    order.shipping_address && 
+                    order.shipping_address.trim().toLowerCase() === normalizedSearchTerm;
+
+                const dateMatch = (!startDate || new Date(startDate) <= orderDate) && 
+                                 (!endDate || orderDate <= new Date(endDate));
+
+                console.log(`Order:`, order);
+                console.log(`Email match: ${emailMatch}, Shipping match: ${shippingMatch}, Date match: ${dateMatch}`);
+
+                return (emailMatch || shippingMatch) && dateMatch;
+            });
+
+            console.log('Filtered orders:', filteredOrders);
+
+            if (filteredOrders.length === 0) {
+                alert('No results found for the given search term.');
+                return null;
+            }
+
+            if (searchType === 'email') {
+                const customerOrders = filteredOrders[0] || {};
+                const newOrders = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'new order');
+                const refunds = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'refund');
+                const replacements = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'replacement');
+                
+                const topProducts = Object.entries(
+                    filteredOrders.reduce((acc, o) => {
+                        acc[o.product_name] = (acc[o.product_name] || 0) + (parseInt(o.quantity) || 0);
+                        return acc;
+                    }, {})
+                ).map(([name, quantity]) => ({name, quantity}));
+                // Sort top products by quantity in descending order
+                topProducts.sort((a, b) => b.quantity - a.quantity);
+
+                return {
+                    name: customerOrders.customer_name || 'Unknown',
+                    address: customerOrders.shipping_address || 'Unknown',
+                    totalProducts: newOrders.reduce((sum, o) => sum + (parseInt(o.quantity) || 0), 0),
+                    totalOrderValue: newOrders.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    productsReturned: refunds.reduce((sum, o) => sum + (parseInt(o.quantity) || 0), 0),
+                    refundValue: refunds.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    productsReplaced: replacements.reduce((sum, o) => sum + (parseInt(o.quantity) || 0), 0),
+                    replacementValue: replacements.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    replacedAndReturned: 0,
+                    replacementReturnValue: 0,
+                    topProducts: topProducts,
+                    orders: filteredOrders.map(o => ({
+                        id: o.order_id,
+                        date: o.order_date,
+                        products: parseInt(o.quantity) || 0,
+                        value: parseFloat(o.order_total) || 0,
+                        status: 'Delivered',
+                        returned: o.type && o.type.toLowerCase() === 'refund',
+                        refund: o.type && o.type.toLowerCase() === 'refund' ? parseFloat(o.order_total) || 0 : 0
+                    }))
+                };
+            } else {
+                const emails = [...new Set(filteredOrders.map(o => o.email_address))];
+                const newOrders = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'new order');
+                const refunds = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'refund');
+                const replacements = filteredOrders.filter(o => o.type && o.type.toLowerCase() === 'replacement');
+                
+                const emailDetails = emails.map(email => {
+                    const emailOrders = filteredOrders.filter(o => o.email_address === email);
+                    const emailNewOrders = emailOrders.filter(o => o.type && o.type.toLowerCase() === 'new order');
+                    const emailRefunds = emailOrders.filter(o => o.type && o.type.toLowerCase() === 'refund');
+                    return {
+                        email: email,
+                        orders: emailNewOrders.length,
+                        value: emailNewOrders.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                        returns: emailRefunds.length,
+                        refundValue: emailRefunds.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0)
+                    };
+                });
+
+                const topProducts = Object.entries(
+                    filteredOrders.reduce((acc, o) => {
+                        acc[o.product_name] = (acc[o.product_name] || 0) + (parseInt(o.quantity) || 0);
+                        return acc;
+                    }, {})
+                ).map(([name, quantity]) => ({name, quantity}));
+                // Sort top products by quantity in descending order
+                topProducts.sort((a, b) => b.quantity - a.quantity);
+
+                return {
+                    emailCount: emails.length,
+                    emails: emails,
+                    emailDetails: emailDetails,
+                    totalOrders: newOrders.length,
+                    orderValue: newOrders.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    ordersReturned: refunds.length,
+                    refundValue: refunds.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    ordersReplaced: replacements.length,
+                    replacementValue: replacements.reduce((sum, o) => sum + (parseFloat(o.order_total) || 0), 0),
+                    replacedAndReturned: 0,
+                    totalValue: 0,
+                    topProducts: topProducts,
+                    orders: filteredOrders.map(o => ({
+                        id: o.order_id,
+                        date: o.order_date,
+                        products: parseInt(o.quantity) || 0,
+                        value: parseFloat(o.order_total) || 0,
+                        status: 'Delivered',
+                        returned: o.type && o.type.toLowerCase() === 'refund',
+                        refund: o.type && o.type.toLowerCase() === 'refund' ? parseFloat(o.order_total) || 0 : 0
+                    }))
+                };
+            }
+        }
+
+        function populateEmailResults(data) {
+            document.getElementById('customer-name').textContent = data.name;
+            document.getElementById('shipping-address').textContent = data.address;
+            document.getElementById('total-products').textContent = data.totalProducts;
+            document.getElementById('total-order-value').textContent = `$${data.totalOrderValue.toFixed(2)}`;
+            document.getElementById('products-returned').textContent = data.productsReturned;
+            document.getElementById('refund-value').textContent = `$${data.refundValue.toFixed(2)}`;
+            document.getElementById('products-replaced').textContent = data.productsReplaced;
+            document.getElementById('replacement-value').textContent = `$${data.replacementValue.toFixed(2)}`;
+            document.getElementById('replaced-returned').textContent = data.replacedAndReturned;
+            document.getElementById('replacement-return-value').textContent = `$${data.replacementReturnValue.toFixed(2)}`;
+
+            // Populate order details
+            const orderDetailsTable = document.getElementById('order-details');
+            orderDetailsTable.innerHTML = '';
+            data.orders.forEach(order => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${order.id}</td>
+                    <td>${order.date}</td>
+                    <td>${order.products}</td>
+                    <td>$${order.value.toFixed(2)}</td>
+                    <td>${order.status}</td>
+                    <td>${order.returned ? `Refunded ($${order.refund.toFixed(2)})` : 'Not Returned'}</td>
+                `;
+                orderDetailsTable.appendChild(tr);
+            });
+
+            // Populate products list
+            const topProductsList = document.getElementById('top-products');
+            topProductsList.innerHTML = '';
+            data.topProducts.forEach(product => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${product.name}</strong> - ${product.quantity} units`;
+                topProductsList.appendChild(li);
+            });
+        }
+
+        function populateShippingResults(data) {
+            document.getElementById('email-count').innerHTML = `<a href="#" id="view-emails">${data.emailCount} email account${data.emailCount !== 1 ? 's' : ''}</a>`;
+            document.getElementById('total-orders').textContent = data.totalOrders;
+            document.getElementById('shipping-order-value').textContent = `$${data.orderValue.toFixed(2)}`;
+            document.getElementById('orders-returned').textContent = data.ordersReturned;
+            document.getElementById('shipping-refund-value').textContent = `$${data.refundValue.toFixed(2)}`;
+            document.getElementById('orders-replaced').textContent = data.ordersReplaced;
+            document.getElementById('shipping-replacement-value').textContent = `$${data.replacementValue.toFixed(2)}`;
+            document.getElementById('shipping-replaced-returned').textContent = data.replacedAndReturned;
+            document.getElementById('shipping-total-value').textContent = `$${data.totalValue.toFixed(2)}`;
+
+            // Add event listener for the view-emails link
+            document.getElementById('view-emails').addEventListener('click', function(e) {
+                e.preventDefault();
+                const emailList = document.getElementById('email-list');
+                emailList.innerHTML = '';
+                data.emails.forEach(email => {
+                    const li = document.createElement('li');
+                    li.textContent = email;
+                    emailList.appendChild(li);
+                });
+                document.getElementById('email-modal').style.display = 'block';
+            });
+
+            // Populate email details
+            const emailDetailsTable = document.getElementById('email-details');
+            emailDetailsTable.innerHTML = '';
+            data.emailDetails.forEach(detail => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${detail.email}</td>
+                    <td>${detail.orders}</td>
+                    <td>$${detail.value.toFixed(2)}</td>
+                    <td>${detail.returns}</td>
+                    <td>$${detail.refundValue.toFixed(2)}</td>
+                `;
+                emailDetailsTable.appendChild(tr);
+            });
+
+            // Populate products list
+            const addressProductsList = document.getElementById('address-top-products');
+            addressProductsList.innerHTML = '';
+            data.topProducts.forEach(product => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${product.name}</strong> - ${product.quantity} units`;
+                addressProductsList.appendChild(li);
+            });
+        }
+
+        function updateResults(type, term, startDate, endDate, tabType = 'summary') {
+            // Hide all result sections first
+            document.getElementById('email-results').style.display = 'none';
+            document.getElementById('email-details').style.display = 'none';
+            document.getElementById('email-products').style.display = 'none';
+            document.getElementById('shipping-results').style.display = 'none';
+            document.getElementById('shipping-details').style.display = 'none';
+            document.getElementById('shipping-products').style.display = 'none';
+
+            // Reset active tab
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            const activeTab = document.querySelector(`.tab[data-tab="${tabType}"]`);
+            if (activeTab) activeTab.classList.add('active');
+
+            // Update title
+            const resultsTitle = document.getElementById('results-title');
+            if (!resultsTitle) {
+                console.error('resultsTitle not found - ensure <h2 id="results-title"> exists in the HTML');
+                return;
+            }
+
+            // Process orders
+            currentSearchData = processOrders(ordersData, type, term, startDate, endDate);
+            if (!currentSearchData) {
+                // Hide results container if no data is found
+                document.getElementById('results-container').className = 'results-container';
+                return;
+            }
+
+            console.log('Processed data:', currentSearchData);
+
+            if (type === 'email') {
+                if (tabType === 'summary') {
+                    document.getElementById('email-results').style.display = 'block';
+                } else if (tabType === 'details') {
+                    document.getElementById('email-details').style.display = 'block';
+                } else if (tabType === 'products') {
+                    document.getElementById('email-products').style.display = 'block';
+                }
+                resultsTitle.textContent = `Results for Email: ${term}`;
+                populateEmailResults(currentSearchData);
+                document.getElementById('fraud-alert').classList.remove('show');
+            } else {
+                if (tabType === 'summary') {
+                    document.getElementById('shipping-results').style.display = 'block';
+                } else if (tabType === 'details') {
+                    document.getElementById('shipping-details').style.display = 'block';
+                } else if (tabType === 'products') {
+                    document.getElementById('shipping-products').style.display = 'block';
+                }
+                resultsTitle.textContent = `Results for Address: ${term}`;
+                populateShippingResults(currentSearchData);
+                document.getElementById('fraud-alert').classList.toggle('show', currentSearchData.emailCount > 5);
+            }
+        }
+    </script>
+</body>
+</html>
